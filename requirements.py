@@ -56,15 +56,10 @@ def main():
     """
 
     for line in pkgs.split("\n"):
-        # handle multiple space in an empty line
-        line = line.strip()
+        # 处理每一行
+        line = line.strip()  # 去除行首行尾的空白字符
 
-        if len(line) > 0:
-            # use pip's internal APIs in this way is deprecated. This will fail in a future version of pip.
-            # The most reliable approach, and the one that is fully supported, is to run pip in a subprocess.
-            # ref: https://pip.pypa.io/en/latest/user_guide/#using-pip-from-your-program
-            # pip.main(['install', *line.split()])
-
+        if len(line) > 0:  # 如果行不为空
             pip_install(args.proxy, line.split())
 
     print("\nsuccessfully installed requirements!")
