@@ -263,72 +263,83 @@ class FishFind:
 
     def throw_rod(self, fish_type):
         """
-        投掷鱼竿到目标鱼的位置 目标检测鱼竿（没有检测到则随机移动） 找最近的目标鱼 根据鱼的位置计算需要移动的距离
+        投掷鱼竿到目标鱼的位置
+        
+        功能:
+        1. 按住鼠标瞄准目标鱼
+        2. 通过目标检测找到鱼竿和目标鱼的位置
+        3. 根据距离计算并调整鼠标移动速度和方向
+        4. 当鱼竿位置足够接近目标鱼时完成瞄准
+        
         参数:
-            fish_type: 目标鱼类型
+            fish_type: 目标鱼的类型
         """
         # 按下鼠标开始瞄准
-        mouse_down(960, 540)
-        time.sleep(1)
+        mouse_down(960, 540)  # 在屏幕中心按下鼠标
+        time.sleep(1)  # 等待1秒确保按下生效
 
-        # 根据距离 计算鼠标移动速度的函数
         def move_func(dist):
-            if dist > 100:  # 如果距离大于100像素
-                # 快速移动：返回50或-50
-                # np.sign(dist)返回距离的正负号：
-                # - 如果dist > 0，返回+1
-                # - 如果dist < 0，返回-1
-                return 50 * np.sign(dist)
-            else:  # 如果距离小于100像素
-                # 慢速移动：速度与距离成正比
-                # abs(dist)/2.5 + 10 确保最小速度是10像素
-                # np.sign(dist)保持正确的移动方向
-                return (abs(dist)/2.5 + 10) * np.sign(dist)
+            """
+            根据距离计算鼠标移动速度的辅助函数
+            
+            参数:
+                dist: 需要移动的距离(像素)
+            返回:
+                移动速度(像素/次)
+            """
+            if dist > 100:  
+                # 距离大于100像素时快速移动
+                return 50 * np.sign(dist)  # 固定速度50,方向由距离符号决定
+            else:
+                # 距离小于100像素时使用较小的移动速度
+                return (abs(dist)/2.5 + 10) * np.sign(dist)  # 速度与距离成正比,最小速度为10
 
-        # 尝试50次瞄准 目标检测鱼竿（没有检测到则随机移动） 找最近的目标鱼 根据鱼的位置计算需要移动的距离
+        # 尝试50次瞄准循环
         for i in range(50):
             try:
-                # 获取目标检测结果
+                # 获取当前画面的目标检测结果
                 obj_list, outputs, img_info = self.predictor.image_det(cap(), with_info=True)
                 
-                # 如果需要显示检测结果，保存检测图像
+                # 如果开启显示检测结果,保存检测图像用于调试
                 if self.show_det:
                     cv2.imwrite(f'img_tmp/det{i}.png', self.predictor.visual(outputs[0],img_info))
 
-                # 获取置信度最高的鱼竿位置信息
+                # 获取置信度最高的鱼竿位置
                 rod_info = sorted(list(filter(lambda x: x[0] == 'rod', obj_list)), key=lambda x: x[1], reverse=True)
-                if len(rod_info)<=0:  # 如果没检测到鱼竿，随机移动
+                if len(rod_info)<=0:  
+                    # 没检测到鱼竿时随机移动以寻找
                     mouse_move(np.random.randint(-50,50), np.random.randint(-50,50))
                     time.sleep(0.1)
                     continue
                     
                 rod_info=rod_info[0]
-                # 计算鱼竿中心点坐标
+                # 计算鱼竿中心坐标
                 rod_cx = (rod_info[2][0] + rod_info[2][2]) / 2
                 rod_cy = (rod_info[2][1] + rod_info[2][3]) / 2
 
-                # 找到距离鱼竿最近的目标鱼
+                # 在所有目标鱼中找到距离鱼竿最近的一条
                 fish_info = min(list(filter(lambda x: x[0] == fish_type, obj_list)),
                                 key=lambda x: distance((x[2][0]+x[2][2])/2, (x[2][1]+x[2][3])/2, rod_cx, rod_cy))
 
-                # 根据鱼的位置计算需要移动的距离
+                # 根据鱼的位置计算水平方向需要移动的距离
+                # 考虑鱼竿与鱼之间需要保持一定距离(self.dist_dict中定义)
                 if (fish_info[2][0] + fish_info[2][2]) > (rod_info[2][0] + rod_info[2][2]):
                     x_dist = fish_info[2][0] - self.dist_dict[fish_type] - rod_cx
                 else:
                     x_dist = fish_info[2][2] + self.dist_dict[fish_type] - rod_cx
 
-                # 如果位置已经足够接近，结束瞄准
+                # 如果水平和垂直方向的距离都小于30像素,认为位置足够接近,结束瞄准
                 if abs(x_dist)<30 and abs((fish_info[2][3] + fish_info[2][1]) / 2 - rod_info[2][3])<30:
                     break
 
-                # 移动鼠标调整瞄准位置
-                dx = int(move_func(x_dist))
-                dy = int(move_func(((fish_info[2][3]) + fish_info[2][1]) / 2 - rod_info[2][3]))
+                # 根据距离计算移动量并移动鼠标
+                dx = int(move_func(x_dist))  # 水平移动量
+                dy = int(move_func(((fish_info[2][3]) + fish_info[2][1]) / 2 - rod_info[2][3]))  # 垂直移动量
                 mouse_move(dx, dy)
             except Exception as e:
-                traceback.print_exc()
+                traceback.print_exc()  # 打印异常信息便于调试
                 
-        # 松开鼠标，投掷鱼竿
+        # 松开鼠标完成投掷
         mouse_up(960, 540)
 
     def select_food(self, fish_type):
